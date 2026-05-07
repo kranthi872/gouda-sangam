@@ -1,4 +1,17 @@
 import { createContext, useContext, useEffect, useState } from "react";
+import {
+  doc,
+  setDoc,
+  collection,
+  onSnapshot,
+  writeBatch,
+  deleteDoc,
+} from "firebase/firestore";
+import {
+  signOut,
+  onAuthStateChanged,
+} from "firebase/auth";
+import { db, auth, firebaseEnabled } from "@/lib/firebase";
 
 const ADMIN_PASSWORD = "GoudsChitti@2024";
 
@@ -41,28 +54,93 @@ export function AppProvider({ children }) {
   const [lifts, setLifts] = useState([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [firebaseUser, setFirebaseUser] = useState(null);
+
+  const membersRef = db ? collection(db, "members") : null;
+  const liftsRef = db ? collection(db, "lifts") : null;
 
   useEffect(() => {
-    const savedMembers = localStorage.getItem("gc_members");
-    const savedLifts = localStorage.getItem("gc_lifts");
-    const savedAdmin = localStorage.getItem("gc_isAdmin");
-    setMembers(
-      savedMembers
-        ? JSON.parse(savedMembers).map((member) => ({
-            ...member,
-            payments: normalizePayments(member.payments),
-          }))
-        : defaultMembers.map((member) => ({
-            ...member,
-            payments: normalizePayments(member.payments),
-          }))
-    );
-    setLifts(savedLifts ? JSON.parse(savedLifts) : defaultLifts);
-    if (savedAdmin === "true") setIsAdmin(true);
-    setLoaded(true);
+    if (!firebaseEnabled || !auth) {
+      setLoaded(true);
+      return;
+    }
+
+    const unsubAuth = onAuthStateChanged(auth, (user) => {
+      setFirebaseUser(user);
+      if (user) {
+        setIsAdmin(true);
+        localStorage.setItem("gc_isAdmin", "true");
+      }
+    });
+
+    return () => unsubAuth();
   }, []);
 
+  useEffect(() => {
+    if (!firebaseEnabled || !db || !membersRef) {
+      const savedMembers = localStorage.getItem("gc_members");
+      const savedLifts = localStorage.getItem("gc_lifts");
+      setMembers(
+        savedMembers
+          ? JSON.parse(savedMembers).map((member) => ({
+              ...member,
+              payments: normalizePayments(member.payments),
+            }))
+          : defaultMembers.map((member) => ({
+              ...member,
+              payments: normalizePayments(member.payments),
+            }))
+      );
+      setLifts(savedLifts ? JSON.parse(savedLifts) : defaultLifts);
+      setLoaded(true);
+      return;
+    }
+
+    const unsubMembers = onSnapshot(membersRef, (snapshot) => {
+      const data = snapshot.docs.map((doc) => ({
+        ...doc.data(),
+        payments: normalizePayments(doc.data().payments),
+      }));
+      setMembers(data.length > 0 ? data : defaultMembers);
+      localStorage.setItem("gc_members", JSON.stringify(data));
+    });
+
+    const unsubLifts = onSnapshot(liftsRef, (snapshot) => {
+      const data = snapshot.docs.map((doc) => doc.data());
+      setLifts(data.length > 0 ? data : defaultLifts);
+      localStorage.setItem("gc_lifts", JSON.stringify(data));
+    });
+
+    setLoaded(true);
+
+    return () => {
+      unsubMembers();
+      unsubLifts();
+    };
+  }, [firebaseEnabled, db, membersRef, liftsRef]);
+
   const save = (key, value) => localStorage.setItem(key, JSON.stringify(value));
+
+  const saveToFirebase = async (membersData, liftsData) => {
+    if (!firebaseEnabled || !db) return;
+    try {
+      const batch = writeBatch(db);
+
+      membersData.forEach((member) => {
+        const memberRef = doc(db, "members", String(member.id));
+        batch.set(memberRef, member);
+      });
+
+      liftsData.forEach((lift) => {
+        const liftRef = doc(db, "lifts", String(lift.id));
+        batch.set(liftRef, lift);
+      });
+
+      await batch.commit();
+    } catch (error) {
+      console.error("Firebase batch write failed", error);
+    }
+  };
 
   const loginAdmin = (password) => {
     if (password === ADMIN_PASSWORD) {
@@ -76,6 +154,9 @@ export function AppProvider({ children }) {
   const logoutAdmin = () => {
     setIsAdmin(false);
     localStorage.removeItem("gc_isAdmin");
+    if (firebaseEnabled && auth) {
+      signOut(auth).catch((err) => console.error("Sign out failed", err));
+    }
   };
 
   const addMember = (member) => {
@@ -83,18 +164,24 @@ export function AppProvider({ children }) {
     const updated = [...members, newMember];
     setMembers(updated);
     save("gc_members", updated);
+    saveToFirebase(updated, lifts);
   };
 
   const updateMember = (id, updates) => {
     const updated = members.map((m) => (m.id === id ? { ...m, ...updates } : m));
     setMembers(updated);
     save("gc_members", updated);
+    saveToFirebase(updated, lifts);
   };
 
   const deleteMember = (id) => {
     const updated = members.filter((m) => m.id !== id);
     setMembers(updated);
     save("gc_members", updated);
+    if (firebaseEnabled && db) {
+      deleteDoc(doc(db, "members", String(id))).catch((err) => console.error(err));
+    }
+    saveToFirebase(updated, lifts);
   };
 
   const togglePayment = (memberId, monthKey) => {
@@ -118,6 +205,7 @@ export function AppProvider({ children }) {
     });
     setMembers(updated);
     save("gc_members", updated);
+    saveToFirebase(updated, lifts);
   };
 
   const setPaymentFine = (memberId, monthKey, fine) => {
@@ -137,6 +225,7 @@ export function AppProvider({ children }) {
     });
     setMembers(updated);
     save("gc_members", updated);
+    saveToFirebase(updated, lifts);
   };
 
   const setPaymentAmount = (memberId, monthKey, amount) => {
@@ -156,6 +245,7 @@ export function AppProvider({ children }) {
     });
     setMembers(updated);
     save("gc_members", updated);
+    saveToFirebase(updated, lifts);
   };
 
   const addLift = (lift) => {
@@ -163,12 +253,17 @@ export function AppProvider({ children }) {
     const updated = [...lifts, newLift];
     setLifts(updated);
     save("gc_lifts", updated);
+    saveToFirebase(members, updated);
   };
 
   const deleteLift = (id) => {
     const updated = lifts.filter((l) => l.id !== id);
     setLifts(updated);
     save("gc_lifts", updated);
+    if (firebaseEnabled && db) {
+      deleteDoc(doc(db, "lifts", String(id))).catch((err) => console.error(err));
+    }
+    saveToFirebase(members, updated);
   };
 
   // Stats
