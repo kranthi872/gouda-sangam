@@ -111,7 +111,7 @@ export default function Payments() {
               onClick={() => isAdmin && togglePayment(member.id, monthKey)}
             >
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 600, fontSize: "0.95rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{member.name}</div>
+                <div style={{ fontWeight: 600, fontSize: "0.95rem", whiteSpace: "normal", wordBreak: "break-word", overflowWrap: "anywhere" }}>{member.name}</div>
               </div>
               {isAdmin ? (
                 <>
