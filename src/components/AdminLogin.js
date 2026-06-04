@@ -59,10 +59,6 @@ export default function AdminLogin({ onClose }) {
         <button className="btn-gold" style={{ width: "100%" }} onClick={handleLogin}>
           Login as Admin
         </button>
-
-        <p style={{ color: "var(--muted)", fontSize: "0.75rem", textAlign: "center", marginTop: "1rem" }}>
-          Default password: <strong style={{ color: "var(--gold)" }}>GoudsChitti@2024</strong>
-        </p>
       </div>
     </div>
   );

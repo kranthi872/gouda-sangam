@@ -7,13 +7,8 @@ import {
   writeBatch,
   deleteDoc,
 } from "firebase/firestore";
-import {
-  signOut,
-  onAuthStateChanged,
-} from "firebase/auth";
+import { signOut } from "firebase/auth";
 import { db, auth, firebaseEnabled } from "@/lib/firebase";
-
-const ADMIN_PASSWORD = "GoudsChitti@2024";
 
 const normalizePayments = (payments = {}) =>
   Object.fromEntries(
@@ -52,29 +47,11 @@ const AppContext = createContext(null);
 export function AppProvider({ children }) {
   const [members, setMembers] = useState([]);
   const [lifts, setLifts] = useState([]);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(true);
   const [loaded, setLoaded] = useState(false);
-  const [firebaseUser, setFirebaseUser] = useState(null);
 
   const membersRef = db ? collection(db, "members") : null;
   const liftsRef = db ? collection(db, "lifts") : null;
-
-  useEffect(() => {
-    if (!firebaseEnabled || !auth) {
-      setLoaded(true);
-      return;
-    }
-
-    const unsubAuth = onAuthStateChanged(auth, (user) => {
-      setFirebaseUser(user);
-      if (user) {
-        setIsAdmin(true);
-        localStorage.setItem("gc_isAdmin", "true");
-      }
-    });
-
-    return () => unsubAuth();
-  }, []);
 
   useEffect(() => {
     if (!firebaseEnabled || !db || !membersRef) {
@@ -142,13 +119,10 @@ export function AppProvider({ children }) {
     }
   };
 
-  const loginAdmin = (password) => {
-    if (password === ADMIN_PASSWORD) {
-      setIsAdmin(true);
-      localStorage.setItem("gc_isAdmin", "true");
-      return true;
-    }
-    return false;
+  const loginAdmin = () => {
+    setIsAdmin(true);
+    localStorage.setItem("gc_isAdmin", "true");
+    return true;
   };
 
   const logoutAdmin = () => {
