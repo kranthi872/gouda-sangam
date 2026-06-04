@@ -1,8 +1,74 @@
 import { useApp } from "@/context/AppContext";
+import { useState } from "react";
 import { Users, TrendingUp, CreditCard, CheckCircle, AlertCircle, Shield } from "lucide-react";
 
+function ChangePasswordModal({ onClose, onChangePassword }) {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const handleSubmit = () => {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setError("Please fill in all fields.");
+      setSuccess("");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError("New passwords do not match.");
+      setSuccess("");
+      return;
+    }
+    if (!onChangePassword(currentPassword, newPassword)) {
+      setError("Current password is incorrect.");
+      setSuccess("");
+      return;
+    }
+    setError("");
+    setSuccess("Password updated successfully.");
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setTimeout(() => onClose(), 800);
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }}>
+          <h2 style={{ fontSize: "1.1rem" }}>Change Admin Password</h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer" }}>
+            ×
+          </button>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
+          <div>
+            <label style={{ color: "var(--muted)", fontSize: "0.8rem", display: "block", marginBottom: 4 }}>Current Password</label>
+            <input className="input" type="password" value={currentPassword} onChange={(e) => { setCurrentPassword(e.target.value); setError(""); setSuccess(""); }} />
+          </div>
+          <div>
+            <label style={{ color: "var(--muted)", fontSize: "0.8rem", display: "block", marginBottom: 4 }}>New Password</label>
+            <input className="input" type="password" value={newPassword} onChange={(e) => { setNewPassword(e.target.value); setError(""); setSuccess(""); }} />
+          </div>
+          <div>
+            <label style={{ color: "var(--muted)", fontSize: "0.8rem", display: "block", marginBottom: 4 }}>Confirm New Password</label>
+            <input className="input" type="password" value={confirmPassword} onChange={(e) => { setConfirmPassword(e.target.value); setError(""); setSuccess(""); }} />
+          </div>
+          {error && <p style={{ color: "#f87171", fontSize: "0.85rem" }}>{error}</p>}
+          {success && <p style={{ color: "#34d399", fontSize: "0.85rem" }}>{success}</p>}
+          <button className="btn-gold" style={{ width: "100%" }} onClick={handleSubmit}>
+            Update Password
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard({ onAdminLogin }) {
-  const { totalMembers, paidThisMonth, total20kLifts, total50kLifts, members, lifts, isAdmin, currentMonth, finesThisMonth, collectedThisMonth } = useApp();
+  const { totalMembers, paidThisMonth, total20kLifts, total50kLifts, members, lifts, isAdmin, currentMonth, finesThisMonth, collectedThisMonth, changeAdminPassword } = useApp();
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   const unpaidThisMonth = totalMembers - paidThisMonth;
 
@@ -24,7 +90,8 @@ export default function Dashboard({ onAdminLogin }) {
               {new Date().toLocaleDateString("en-IN", { month: "long", year: "numeric" })}
             </p>
           </div>
-          {!isAdmin && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {!isAdmin ? (
             <button
               className="btn-outline"
               onClick={onAdminLogin}
@@ -32,9 +99,25 @@ export default function Dashboard({ onAdminLogin }) {
             >
               <Shield size={14} /> Admin
             </button>
-          )}
+            ) : (
+              <button
+                className="btn-outline"
+                onClick={() => setShowChangePassword(true)}
+                style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.8rem" }}
+              >
+                <Shield size={14} /> Change Password
+              </button>
+            )}
+          </div>
         </div>
       </div>
+
+        {showChangePassword && (
+          <ChangePasswordModal
+            onClose={() => setShowChangePassword(false)}
+            onChangePassword={changeAdminPassword}
+          />
+        )}
 
       {/* Stats Grid */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.85rem", marginBottom: "1.25rem" }}>

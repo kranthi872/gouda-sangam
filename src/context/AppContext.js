@@ -47,7 +47,12 @@ const AppContext = createContext(null);
 export function AppProvider({ children }) {
   const [members, setMembers] = useState([]);
   const [lifts, setLifts] = useState([]);
-  const [isAdmin, setIsAdmin] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(
+    () => typeof window !== "undefined" && localStorage.getItem("gc_isAdmin") === "true"
+  );
+  const [adminPassword, setAdminPassword] = useState(() =>
+    typeof window !== "undefined" ? localStorage.getItem("gc_adminPassword") || "Gouds@321" : "Gouds@321"
+  );
   const [loaded, setLoaded] = useState(false);
 
   const membersRef = db ? collection(db, "members") : null;
@@ -119,9 +124,21 @@ export function AppProvider({ children }) {
     }
   };
 
-  const loginAdmin = () => {
-    setIsAdmin(true);
-    localStorage.setItem("gc_isAdmin", "true");
+  const loginAdmin = (password) => {
+    if (password === adminPassword) {
+      setIsAdmin(true);
+      localStorage.setItem("gc_isAdmin", "true");
+      return true;
+    }
+    return false;
+  };
+
+  const changeAdminPassword = (currentPassword, newPassword) => {
+    if (currentPassword !== adminPassword) return false;
+    setAdminPassword(newPassword);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("gc_adminPassword", newPassword);
+    }
     return true;
   };
 
@@ -281,6 +298,7 @@ export function AppProvider({ children }) {
         collectedThisMonth,
         total20kLifts,
         total50kLifts,
+        changeAdminPassword,
         currentMonth,
       }}
     >
